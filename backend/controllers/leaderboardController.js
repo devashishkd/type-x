@@ -9,12 +9,20 @@ export const getLeaderboard = async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
 
-    const players = await User.find({ 'stats.gamesPlayed': { $gt: 0 } })
-      .select('username stats.bestWpm stats.avgWpm stats.wins stats.gamesPlayed stats.avgAccuracy')
-      .sort({ 'stats.bestWpm': -1 })
+    const players1v1 = await User.find({ 'stats1v1.gamesPlayed': { $gt: 0 } })
+      .select('username stats1v1')
+      .sort({ 'stats1v1.avgWpm': -1 })
       .limit(limit);
 
-    return res.status(200).json({ leaderboard: players });
+    const playersMulti = await User.find({ 'statsMultiplayer.gamesPlayed': { $gt: 0 } })
+      .select('username statsMultiplayer')
+      .sort({ 'statsMultiplayer.avgWpm': -1 })
+      .limit(limit);
+
+    return res.status(200).json({ 
+      leaderboard1v1: players1v1,
+      leaderboardMulti: playersMulti 
+    });
   } catch (error) {
     console.error('[getLeaderboard]', error);
     res.status(500).json({ message: 'Server error while fetching leaderboard.' });

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import SimpleLineChart from '../components/SimpleLineChart';
 
 /* ─── Design tokens ──────────────────────────────────────── */
 const BG      = '#090d16';
@@ -87,11 +88,18 @@ const GamePage = () => {
   const [focused,   setFocused]  = useState(false);
   const [messages,  setMessages] = useState([]);
   const [chatInput, setChatInput]= useState('');
+  const [wpmHistory, setWpmHistory] = useState([]);
 
   const inputRef        = useRef(null);
   const progressTimerRef= useRef(null);
   const messagesEndRef  = useRef(null);
+  const playersRef      = useRef([]);
+  const wpmHistoryRef   = useRef([]);
   const latestStatsRef  = useRef({ typed, calculateStats: () => ({ wpm: 0, accuracy: 100 }) });
+
+  useEffect(() => {
+    playersRef.current = players;
+  }, [players]);
 
   /* ── Stats ── */
   const calculateStats = () => {
@@ -119,6 +127,24 @@ const GamePage = () => {
       sessionStorage.removeItem('gameData');
     }
   }, []);
+
+  /* ── Game tracking interval ── */
+  useEffect(() => {
+    let interval;
+    if (startTime && !finished) {
+      interval = setInterval(() => {
+        const now = Date.now();
+        const snap = { time: Math.floor((now - startTime) / 1000) };
+        // Capture everyone's current WPM
+        playersRef.current.forEach(p => {
+          snap[p.userId] = p.wpm || 0;
+        });
+        wpmHistoryRef.current.push(snap);
+        setWpmHistory([...wpmHistoryRef.current]);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [startTime, finished]);
 
   /* ── Socket events ── */
   useEffect(() => {
@@ -164,7 +190,7 @@ const GamePage = () => {
         socket?.emit('game:finish', { roomId, wpm, accuracy, progress: Math.min(prog, 100) });
       }
     }, 1000);
-    return () => clearInterval(t);
+    return () => clearTimeout(t);
   }, [startTime, finished, text.length, roomId, socket]);
 
   /* ── Auto-focus ── */
@@ -220,48 +246,94 @@ const GamePage = () => {
       <p style={{ color: TEXT2, fontSize: 15 }}>Waiting for game to start…</p>
     </div>
   );
+  if (finished && results) {
+    const me = results.find(p => p.userId === user?.id) || results[0];
+    
+    // Build line configuration for the chart dynamically based on participants
+    const chartLines = results.map((p, idx) => ({
+      key: p.userId,
+      color: PLAYER_COLORS[idx % PLAYER_COLORS.length]
+    }));
 
-  /* ────── Results screen ────── */
-  if (results) return (
-    <div style={{ minHeight: '100vh', background: BG, fontFamily: "'Inter', system-ui, sans-serif", color: TEXT1 }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); *{box-sizing:border-box;margin:0;padding:0}`}</style>
-      <nav style={{ height: 50, borderBottom: `1px solid ${BORDER}`, background: CARD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
-          <IcoHome />
-          <span style={{ color: TEXT2 }}>Home</span>
-          <span style={{ color: TEXT2 }}>/</span>
-          <span style={{ color: TEXT1, fontWeight: 600 }}>Game Over</span>
-        </div>
-        <button onClick={() => navigate('/')} style={leaveBtnSx}>Back to Home</button>
-      </nav>
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '48px 24px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>🏆</div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: TEXT1 }}>Game Over</h1>
-          <p style={{ color: TEXT2, fontSize: 14, marginTop: 6 }}>Final standings</p>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {results.map((player, i) => (
-            <div key={player.userId} style={{ ...cardSx, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: i === 0 ? 'rgba(139,92,246,0.1)' : CARD }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <span style={{ fontSize: 20, width: 28 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`}</span>
-                <Avatar name={player.username} color={colorOf(player.userId)} size={34} />
-                <div>
-                  <p style={{ color: TEXT1, fontWeight: 600 }}>{player.username}{player.userId === user?.id && <span style={{ color: TEXT2, fontSize: 12, fontWeight: 400, marginLeft: 6 }}>(you)</span>}</p>
-                  <p style={{ color: TEXT2, fontSize: 12, marginTop: 2 }}>{player.finished ? 'Finished' : `${Math.round(player.progress)}% complete`}</p>
-                </div>
+    return (
+      <div style={{ minHeight: '100vh', background: BG, fontFamily: "'Inter', system-ui, sans-serif", color: TEXT1 }}>
+        <nav style={{ height: 50, borderBottom: `1px solid ${BORDER}`, background: CARD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+            <IcoHome />
+            <span style={{ color: TEXT2 }}>Home</span>
+            <span style={{ color: TEXT2 }}>/</span>
+            <span style={{ color: TEXT1, fontWeight: 600 }}>Multiplayer Results</span>
+          </div>
+          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: TEXT2, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+             Exit
+          </button>
+        </nav>
+        
+        <div style={{ maxWidth: 1000, margin: '40px auto', padding: '0 24px' }}>
+          
+          <div style={{ display: 'flex', gap: 40, alignItems: 'center', marginBottom: 20 }}>
+            {/* Left side: Huge numbers */}
+            <div style={{ display: 'flex', flexDirection: 'column', width: '200px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 28, color: TEXT2, lineHeight: 1, marginBottom: 8, letterSpacing: '0.05em' }}>wpm</span>
+                <span style={{ fontSize: 84, fontWeight: 700, color: '#38BDF8', lineHeight: 0.9 }}>{me?.wpm || 0}</span>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ color: PURPLE, fontWeight: 700, fontSize: 18 }}>{player.wpm} WPM</p>
-                <p style={{ color: TEXT2, fontSize: 12, marginTop: 2 }}>{player.accuracy}% accuracy</p>
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 32 }}>
+                <span style={{ fontSize: 28, color: TEXT2, lineHeight: 1, marginBottom: 8, letterSpacing: '0.05em' }}>acc</span>
+                <span style={{ fontSize: 84, fontWeight: 700, color: '#22C55E', lineHeight: 0.9 }}>{me?.accuracy || 0}<span style={{ fontSize: 40 }}>%</span></span>
               </div>
             </div>
-          ))}
+
+            {/* Right side: Chart */}
+            <div style={{ flex: 1, height: 280, padding: '20px 0', position: 'relative' }}>
+              
+              {/* Legend overlay for the chart */}
+              <div style={{ position: 'absolute', top: 12, right: 0, display: 'flex', gap: 12 }}>
+                {results.map((p, idx) => (
+                  <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: PLAYER_COLORS[idx % PLAYER_COLORS.length] }}></span>
+                    <span style={{ fontSize: 11, color: TEXT2, fontWeight: 600 }}>{p.username}</span>
+                  </div>
+                ))}
+              </div>
+
+              <SimpleLineChart 
+                data={wpmHistory} 
+                lines={chartLines} 
+              />
+            </div>
+          </div>
+
+          {/* Bottom row: Extra Stats */}
+          <div style={{ display: 'flex', justifyContent: 'space-around', padding: '24px 0', marginBottom: 40 }}>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: 13, color: TEXT2, marginBottom: 6, letterSpacing: '0.05em' }}>test type</p>
+              <p style={{ fontSize: 24, color: '#38BDF8', fontWeight: 600 }}>text / multiplayer</p>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: 13, color: TEXT2, marginBottom: 6, letterSpacing: '0.05em' }}>characters</p>
+              <p style={{ fontSize: 24, color: '#38BDF8', fontWeight: 600 }}>{text.length}</p>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: 13, color: TEXT2, marginBottom: 6, letterSpacing: '0.05em' }}>time</p>
+              <p style={{ fontSize: 24, color: '#38BDF8', fontWeight: 600 }}>{(120 - timeLeft)}s</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 24, margin: '0 auto' }}>
+            <button 
+              onClick={() => navigate('/')} 
+              style={{ padding: '12px 24px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: TEXT1, border: 'none', fontSize: 15, fontWeight: 600, cursor: 'pointer', transition: 'background .15s', display: 'flex', alignItems: 'center', gap: 8 }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+            >
+              <IcoHome /> Back to Home
+            </button>
+          </div>
         </div>
-        <button onClick={() => navigate('/')} style={{ ...leaveBtnSx, width: '100%', marginTop: 20, padding: '13px', borderRadius: 12, justifyContent: 'center', fontSize: 15 }}>Back to Home</button>
       </div>
-    </div>
-  );
+    );
+  }
 
   /* ────── Main game UI ────── */
   const { wpm, accuracy } = calculateStats();

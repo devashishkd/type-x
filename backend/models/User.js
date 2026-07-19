@@ -25,7 +25,14 @@ const userSchema = new Schema(
       minlength: 6,
       select: false, 
     },
-    stats: {
+    stats1v1: {
+      gamesPlayed: { type: Number, default: 0 },
+      wins:        { type: Number, default: 0 },
+      avgWpm:      { type: Number, default: 0 },
+      bestWpm:     { type: Number, default: 0 },
+      avgAccuracy: { type: Number, default: 0 },
+    },
+    statsMultiplayer: {
       gamesPlayed: { type: Number, default: 0 },
       wins:        { type: Number, default: 0 },
       avgWpm:      { type: Number, default: 0 },

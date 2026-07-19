@@ -19,7 +19,8 @@ export const getProfile = async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        stats: user.stats,
+        stats1v1: user.stats1v1,
+        statsMultiplayer: user.statsMultiplayer,
         createdAt: user.createdAt,
       },
     });
@@ -123,7 +124,7 @@ export const changePassword = async (req, res) => {
 
 export const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).select('username stats createdAt');
+    const user = await User.findById(req.params.userId).select('username stats1v1 statsMultiplayer createdAt');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });

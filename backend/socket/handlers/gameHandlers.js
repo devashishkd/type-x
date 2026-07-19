@@ -22,6 +22,7 @@ import {
   getResults,
   deleteGame,
 } from "../utils/roomManager.js";
+import User from "../../models/User.js";
 
 export function registerGameHandlers(io, socket) {
 
@@ -115,9 +116,40 @@ export function registerGameHandlers(io, socket) {
       console.log(`🏆 Game over in room ${roomId}!`);
       console.log(`   Winner: ${results[0]?.username} (${results[0]?.wpm} WPM)`);
 
-      // clean up the in-memory game state
-      // the room still exists in MongoDB, players are still in the lobby
-      deleteGame(roomId);
+      // ─── Save Stats to MongoDB ──────────────────────────────────
+      const mode = game.mode || 'multi';
+      const statsField = mode === '1v1' ? 'stats1v1' : 'statsMultiplayer';
+
+      // update each player concurrently
+      Promise.all(results.map(async (player, index) => {
+        try {
+          const isWinner = index === 0;
+          const user = await User.findById(player.userId);
+          if (!user) return;
+
+          const stats = user[statsField] || { gamesPlayed: 0, wins: 0, avgWpm: 0, avgAccuracy: 0, bestWpm: 0 };
+          
+          // recalculate rolling averages
+          const newGamesPlayed = (stats.gamesPlayed || 0) + 1;
+          const newAvgWpm = (((stats.avgWpm || 0) * (stats.gamesPlayed || 0)) + player.wpm) / newGamesPlayed;
+          const newAvgAcc = (((stats.avgAccuracy || 0) * (stats.gamesPlayed || 0)) + player.accuracy) / newGamesPlayed;
+
+          await User.findByIdAndUpdate(player.userId, {
+            $set: {
+              [`${statsField}.gamesPlayed`]: newGamesPlayed,
+              [`${statsField}.wins`]: (stats.wins || 0) + (isWinner ? 1 : 0),
+              [`${statsField}.avgWpm`]: Math.round(newAvgWpm),
+              [`${statsField}.avgAccuracy`]: Math.round(newAvgAcc),
+              [`${statsField}.bestWpm`]: Math.max(stats.bestWpm || 0, player.wpm)
+            }
+          });
+        } catch (err) {
+          console.error(`Failed to save stats for ${player.username}:`, err);
+        }
+      })).then(() => {
+        // clean up the in-memory game state after saving
+        deleteGame(roomId);
+      });
     }
   });
 }

@@ -273,7 +273,7 @@ function startCountdown(io, roomId, room) {
       }));
 
       // create the game in memory (roomManager.js)
-      const game = createGame(roomId, playerIds);
+      const game = createGame(roomId, playerIds, freshRoom.mode);
       game.startTime = Date.now();
       game.status = "playing";
 

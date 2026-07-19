@@ -18,6 +18,13 @@ export function registerSocketHandlers() {
   // runs for every client that passes auth
   io.on("connection", (socket) => {
     console.log(`⚡ ${socket.user.username} connected (${socket.id})`);
+    
+    // Broadcast updated user count
+    io.emit("active_users", io.engine.clientsCount);
+
+    socket.on("request_active_users", () => {
+      socket.emit("active_users", io.engine.clientsCount);
+    });
 
     // register all the event handlers for this socket
     registerRoomHandlers(io, socket);
@@ -30,6 +37,8 @@ export function registerSocketHandlers() {
 
     socket.on("disconnect", () => {
       console.log(`💤 ${socket.user.username} disconnected (${socket.id})`);
+      // Broadcast updated user count
+      io.emit("active_users", io.engine.clientsCount);
     });
   });
 }

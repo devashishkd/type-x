@@ -52,7 +52,7 @@ function getRandomText() {
 
 // ─── Create a new game for a room ─────────────────────────────────
 // called when the countdown starts (all players ready)
-function createGame(roomId, playerIds) {
+function createGame(roomId, playerIds, mode = 'multi') {
   const text = getRandomText();
 
   // create a Map of all players and their initial stats
@@ -71,6 +71,7 @@ function createGame(roomId, playerIds) {
   const game = {
     text,
     players,
+    mode,                 // 1v1 or multi
     startTime: null,      // set when countdown ends
     status: "countdown",  // countdown → playing → finished
     countdown: 15,        // seconds until game starts
