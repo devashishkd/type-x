@@ -3,7 +3,7 @@ import axios from 'axios';
 // create an axios instance that talks to our backend
 // since we have a vite proxy, we can just use /api as the base url
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.PROD ? 'https://type-x-678u.onrender.com/api' : '/api',
   withCredentials: true, // so cookies (refresh token) are sent automatically
 });
 

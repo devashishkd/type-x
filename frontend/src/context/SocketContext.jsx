@@ -34,7 +34,8 @@ export const SocketProvider = ({ children }) => {
     // create the socket connection
     // we pass the token in the auth object — the backend reads this
     // in socket/authMiddleware.js to verify who we are
-    const newSocket = io('http://localhost:3000', {
+    const SOCKET_URL = import.meta.env.PROD ? 'https://type-x-678u.onrender.com' : 'http://localhost:3000';
+    const newSocket = io(SOCKET_URL, {
       auth: { token },
     });
 

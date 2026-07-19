@@ -20,7 +20,13 @@ initSocket(server);
 registerSocketHandlers();
 
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: function (origin, callback) {
+    if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin) || origin.endsWith('.onrender.com') || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 app.use(cookieParser());

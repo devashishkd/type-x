@@ -9,7 +9,13 @@ let io;
 export function initSocket(server) {
   io = new Server(server, {
     cors: {
-      origin: process.env.FRONTEND_URL || "http://localhost:5173",
+      origin: function (origin, callback) {
+        if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin) || origin.endsWith('.onrender.com') || origin.endsWith('.vercel.app')) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       methods: ["GET", "POST"],
       credentials: true,
     },
